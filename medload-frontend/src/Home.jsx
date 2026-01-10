@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { getCurrentUser } from "aws-amplify/auth";
+import AdminLoginModal from "./AdminLoginModal";
+import AdminPanelModal from "./AdminPanelModal";
+
 
 /**
  * MedLoad Home (Vite/React)
@@ -10,6 +14,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 
 export default function Home() {
   const API_BASE_URL = "https://52x01kpdfk.execute-api.us-east-1.amazonaws.com/prod";
+
+
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+
 
   const [data, setData] = useState(null); // { recommendedClinicId, items: [] }
   const [loading, setLoading] = useState(true);
@@ -37,6 +46,16 @@ export default function Home() {
   const lastFetchAtRef = useRef(null);
 
   const [hoveredCard, setHoveredCard] = React.useState(null);
+
+  async function openAdmin() {
+    try {
+      await getCurrentUser();            // אם כבר מחוברת – ישר לפאנל
+      setShowAdminPanel(true);
+    } catch {
+      setShowAdminLogin(true);           // אחרת – פותח התחברות
+    }
+  }
+
 
   async function fetchLoads({ silent = false } = {}) {
     if (!silent) setRefreshing(true);
@@ -325,8 +344,9 @@ export default function Home() {
 
           <div style={styles.headerRight}>
             <div style={styles.updatedPill}>
-              עודכן: <b>{lastUpdatedText}</b>
+              עודכן אוטומטית: <b>{lastUpdatedText}</b>
             </div>
+
 
             <button
               onClick={() => fetchLoads()}
@@ -339,7 +359,24 @@ export default function Home() {
             >
               {refreshing ? "מרענן..." : "רענון"}
             </button>
+
+
+            {/* Admin (settings icon) */}
+            <button
+              onClick={openAdmin}
+              title="Admin login"
+              style={styles.adminBtn}
+              onMouseEnter={(e) => Object.assign(e.currentTarget.style, styles.adminBtnHover)}
+              onMouseLeave={(e) => Object.assign(e.currentTarget.style, styles.adminBtn)}
+            >
+              <span style={{ marginInlineEnd: 6, fontSize: 14 }}>⚙️</span>
+              <span>Admin login</span>
+            </button>
+
           </div>
+
+
+
         </header>
 
         {/* Content */}
@@ -743,7 +780,7 @@ export default function Home() {
                   <div style={{ marginTop: 14 }}>
                     <div style={styles.forecastSectionTitle}>
                       תחזית לפי שעות- בהתאם לשעות פתיחה{" "}
-                      <span style={styles.sectionSubTitle}>(מקסימום 12 שעות קדימה)</span>
+                      <span style={styles.forecastSectionTitle}>(מקסימום 12 שעות קדימה)</span>
                     </div>
 
                     <SimpleBars
@@ -832,6 +869,29 @@ export default function Home() {
           )}
         </Modal>
       )}
+
+      {/* Admin link (discreet) */}
+
+
+      {showAdminLogin && (
+        <AdminLoginModal
+          onClose={() => setShowAdminLogin(false)}
+          onSuccess={() => {
+            setShowAdminLogin(false);
+            setShowAdminPanel(true);
+          }}
+        />
+      )}
+
+      {showAdminPanel && (
+        <AdminPanelModal
+          onClose={() => setShowAdminPanel(false)}
+          onUpdated={() => {
+            fetchLoads({ silent: true });
+          }}
+        />
+      )}
+
     </div>
   );
 }
@@ -1300,7 +1360,7 @@ function BestVisitCard({ best }) {
 
         <div>
           <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(11,16,32,0.65)" }}>
-            היום מומלץ להגיע ב־
+             מומלץ להגיע ב־
           </div>
 
           <div style={{ fontSize: 20, fontWeight: 950 }}>
@@ -1374,18 +1434,18 @@ const styles = {
     pointerEvents: "none",
   },
 
-openStatusBadge: {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,                 // היה 8
-  padding: "6px 12px",    // היה 8px 16px
-  borderRadius: 999,
-  fontFamily: "Arial, sans-serif",
-  fontSize: 13,           // היה 15
-  fontWeight: 800,
-  letterSpacing: "0.3px", // היה 0.4px
-  textTransform: "uppercase",
-},
+  openStatusBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,                 // היה 8
+    padding: "6px 12px",    // היה 8px 16px
+    borderRadius: 999,
+    fontFamily: "Arial, sans-serif",
+    fontSize: 13,           // היה 15
+    fontWeight: 800,
+    letterSpacing: "0.3px", // היה 0.4px
+    textTransform: "uppercase",
+  },
 
   // Full width shell
   shell: {
@@ -1700,7 +1760,32 @@ openStatusBadge: {
     color: "#0b1020",
     lineHeight: 1.5,
   },
-  // ===== Forecast section (NO duplicate keys) =====
+  adminBtn: {
+    padding: "6px 10px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    lineHeight: 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "Arial, sans-serif",
+    gap: 6,              // ריווח בין האייקון לטקסט
+    opacity: 0.8,
+    transition: "background 120ms ease, transform 120ms ease, opacity 120ms ease",
+  },
+
+  adminBtnHover: {
+    background: "rgba(255,255,255,0.14)",
+    opacity: 1,
+    transform: "translateY(-1px)",
+  },
+
+  // ===== Forecast section  =====
   forecastSectionTitle: {
     fontWeight: 800,
     marginBottom: 8,
