@@ -11,7 +11,7 @@ import { startLogout, isAdmin, getUserEmail } from "./auth";
  * - Full width desktop layout
  * - More vibrant design
  * - Modal for clinic details (no JSON tab)
- * - Polls /loads every 5 minutes
+ * - Polls /loads every 60 seconds 
  */
 
 export default function Dashboard() {
@@ -391,12 +391,15 @@ export default function Dashboard() {
 
           <div style={styles.headerRight}>
             <div style={styles.updatedPill}>
-              עודכן אוטומטית: <b>{lastUpdatedText}</b>
+              מדידה אחרונה: <b>{lastUpdatedText}</b> • בדיקה אוטומטית כל דקה
             </div>
+
 
 
             <button
               onClick={() => fetchLoads()}
+              title="בדיקה ידנית אם קיימים נתונים חדשים (המערכת בודקת אוטומטית כל דקה)"
+
               disabled={refreshing || loading}
               style={{
                 ...styles.refreshBtn,
@@ -406,7 +409,7 @@ export default function Dashboard() {
               onMouseEnter={headerBtnHoverIn}
               onMouseLeave={headerBtnHoverOut}
             >
-              {refreshing ? "מרענן..." : "רענון"}
+              {refreshing ? "בודק..." : "בדיקת עדכון"}
             </button>
 
 
@@ -689,7 +692,7 @@ export default function Dashboard() {
                           <span style={styles.timeDot} />
                           <span style={styles.timeText}>
                             {c?.latest?.Timestamp
-                              ? `עודכן: ${formatTimeShort(toDateSafe(c.latest.Timestamp))}`
+                              ? `מדידה אחרונה: ${formatTimeShort(toDateSafe(c.latest.Timestamp))}`
                               : "אין עדיין מדידות"}
                           </span>
                         </div>
@@ -711,7 +714,13 @@ export default function Dashboard() {
               <div style={styles.modalTitle}>פרטי מרפאה</div>
 
 
+            </div>
 
+
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+              {details?.latest?.Timestamp
+                ? `מדידה אחרונה: ${formatRelative(toDateSafe(details.latest.Timestamp))}`
+                : "אין מדידה זמינה"}
             </div>
 
             <div style={styles.modalActions}>
@@ -723,10 +732,13 @@ export default function Dashboard() {
                 }}
 
                 disabled={detailsLoading || forecastLoading}
+                title="בדיקה ידנית אם קיימים נתונים חדשים למרפאה זו"
+
               >
-                {detailsLoading || forecastLoading ? "טוען..." : "רענון"}
+                {detailsLoading || forecastLoading ? "בודק..." : "בדיקת עדכון"}
               </button>
               <button style={{ ...styles.modalBtn, ...styles.modalBtnGhost }} onClick={closeModal}>
+
                 סגירה
               </button>
             </div>
