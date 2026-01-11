@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { handleAuthCallback, isLoggedIn } from "./auth";
+import { handleAuthCallback, isLoggedIn, startLogin } from "./auth";
 
 export default function Callback() {
     const nav = useNavigate();
@@ -28,9 +28,8 @@ export default function Callback() {
             .catch((e) => {
                 const em = String(e?.message || "");
 
-                // PKCE verifier יכול "להיעלם" אם מרעננים / חוזרים אחורה / StrictMode — לא מציגים שגיאה למשתמש
                 if (em.includes("Missing PKCE verifier")) {
-                    nav("/", { replace: true });
+                    startLogin();   // ✅ מתחיל התחברות מחדש אוטומטית
                     return;
                 }
 

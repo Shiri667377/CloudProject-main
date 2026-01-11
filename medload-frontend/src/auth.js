@@ -23,6 +23,8 @@ function randomString(len = 64) {
 export async function startLogin() {
   const verifier = randomString(64);
   sessionStorage.setItem("pkce_verifier", verifier);
+  localStorage.setItem("pkce_verifier", verifier);   // ✅ גיבוי
+
 
   const challenge = base64UrlEncode(await sha256(verifier));
 
@@ -44,8 +46,12 @@ export async function handleAuthCallback() {
   const code = params.get("code");
   if (!code) return false;
 
-  const verifier = sessionStorage.getItem("pkce_verifier");
+  const verifier =
+    sessionStorage.getItem("pkce_verifier") ||
+    localStorage.getItem("pkce_verifier");
+
   if (!verifier) throw new Error("Missing PKCE verifier. Please login again.");
+
 
   const body = new URLSearchParams();
   body.set("grant_type", "authorization_code");
@@ -69,6 +75,8 @@ export async function handleAuthCallback() {
 
   // ניקוי כדי שלא יהיו שגיאות בהתחברות הבאה
   sessionStorage.removeItem("pkce_verifier");
+  localStorage.removeItem("pkce_verifier");   // ✅ ניקוי גם מהגיבוי
+
 
   window.history.replaceState({}, document.title, "/dashboard");
 
@@ -113,9 +121,9 @@ export function isAdmin() {
   return Array.isArray(groups)
     ? groups.includes("Admins")
     : String(groups)
-        .split(",")
-        .map((s) => s.trim())
-        .includes("Admins");
+      .split(",")
+      .map((s) => s.trim())
+      .includes("Admins");
 }
 
 export function getUserEmail() {
