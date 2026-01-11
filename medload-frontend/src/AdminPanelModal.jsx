@@ -1,6 +1,5 @@
-import React, { useState } from "react";
-import { signOut } from "aws-amplify/auth";
-import { setClinicActive } from "./adminApi";
+import React, { useEffect, useMemo, useState } from "react";
+import { setClinicActive, getAllClinicsAdmin } from "./adminApi";
 
 const overlay = {
     position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
@@ -16,6 +15,10 @@ export default function AdminPanelModal({ onClose, onUpdated }) {
     const [isActive, setIsActive] = useState(true);
     const [msg, setMsg] = useState("");
     const [loading, setLoading] = useState(false);
+    const [clinics, setClinics] = useState([]);        // ⬅️ רשימת מרפאות
+    const [search, setSearch] = useState("");          // ⬅️ טקסט חיפוש
+    const [loadingClinics, setLoadingClinics] = useState(false); // ⬅️ טעינה
+
 
     async function update(e) {
         e.preventDefault();
@@ -24,7 +27,9 @@ export default function AdminPanelModal({ onClose, onUpdated }) {
         try {
             const res = await setClinicActive(clinicId, isActive);
             setMsg(`✅ עודכן בהצלחה. IsActive=${res?.clinic?.IsActive ?? isActive}`);
-             onUpdated?.();
+            onUpdated?.();
+            await refreshClinics();
+
         } catch (e2) {
             setMsg(`❌ ${e2.message}`);
         } finally {
@@ -32,18 +37,70 @@ export default function AdminPanelModal({ onClose, onUpdated }) {
         }
     }
 
-    async function logout() {
-        await signOut();
-        onClose?.();
+    async function refreshClinics() {
+        setMsg("");
+        setLoadingClinics(true);
+        try {
+            const data = await getAllClinicsAdmin();
+            setClinics(data?.items || []);
+        } catch (err) {
+            setMsg(`❌ ${err.message}`);
+        } finally {
+            setLoadingClinics(false);
+        }
     }
+
+
+    useEffect(() => {
+        refreshClinics();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+
+    const filteredClinics = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return clinics;
+
+        return clinics.filter((c) => {
+            const id = String(c?.ClinicId || "").toLowerCase();
+            const name = String(c?.ClinicName || "").toLowerCase();
+            const city = String(c?.City || "").toLowerCase();
+            return id.includes(q) || name.includes(q) || city.includes(q);
+        });
+    }, [clinics, search]);
+
 
     return (
         <div style={overlay} onMouseDown={onClose}>
             <div style={card} onMouseDown={(e) => e.stopPropagation()}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <h3 style={{ margin: 0 }}>ניהול מרפאות</h3>
+                    <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
+                        גישה למנהלים בלבד
+                    </div>
                     <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={logout}>Sign out</button>
+                        <button
+                            type="button"
+                            onClick={refreshClinics}
+                            disabled={loadingClinics}
+                            style={{
+                                padding: "8px 12px",
+                                borderRadius: 12,
+                                border: "1px solid rgba(99,102,241,0.35)",
+                                background:
+                                    "linear-gradient(180deg, rgba(99,102,241,0.95) 0%, rgba(79,70,229,0.95) 100%)",
+                                color: "#fff",
+                                fontWeight: 700,
+                                fontSize: 12,
+                                fontFamily: "Arial, system-ui, -apple-system, Roboto, sans-serif",
+                                boxShadow: "0 8px 20px rgba(79,70,229,0.25)",
+                                cursor: loadingClinics ? "not-allowed" : "pointer",
+                                opacity: loadingClinics ? 0.75 : 1,
+                            }}
+                        >
+                            {loadingClinics ? "מרענן..." : "רענון"}
+                        </button>
+
                         <button onClick={onClose}>Close</button>
                     </div>
                 </div>
@@ -84,11 +141,98 @@ export default function AdminPanelModal({ onClose, onUpdated }) {
                 </div>
 
 
-                <form onSubmit={update} style={{ display: "grid", gap: 12, marginTop: 14 }}>
-                    <label>
-                        ClinicId:
-                        <input value={clinicId} onChange={(e) => setClinicId(e.target.value)} />
+
+                {/* ⬅️ חיפוש ובחירת מרפאה */}
+                <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                    <label style={{ display: "grid", gap: 6 }}>
+                        חיפוש מרפאה:
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="ClinicId / שם / עיר"
+                            style={{
+                                padding: 10,
+                                borderRadius: 10,
+                                border: "1px solid rgba(0,0,0,0.18)",
+                            }}
+                        />
                     </label>
+
+                    {search.trim().length < 2 ? (
+                        <div style={{ fontSize: 12, opacity: 0.7 }}>
+                            התחילי להקליד (לפחות 2 תווים) כדי לראות תוצאות.
+                        </div>
+                    ) : (
+                        <div
+                            style={{
+                                border: "1px solid rgba(0,0,0,0.12)",
+                                borderRadius: 12,
+                                maxHeight: 200,
+                                overflowY: "auto",
+                            }}
+                        >
+                            {loadingClinics ? (
+                                <div style={{ padding: 10, fontSize: 13 }}>טוען מרפאות…</div>
+                            ) : filteredClinics.length === 0 ? (
+                                <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>
+                                    אין תוצאות
+                                </div>
+                            ) : (
+                                filteredClinics.map((c) => (
+                                    <button
+                                        type="button"
+                                        key={c.ClinicId}
+                                        onClick={() => {
+                                            setClinicId(c.ClinicId);
+                                            setIsActive(!!c.IsActive);
+                                            setMsg("");
+                                            setSearch(""); // ⬅️ חדש: סוגר רשימה אחרי בחירה
+                                        }}
+                                        style={{
+                                            width: "100%",
+                                            padding: "10px 12px",
+                                            border: "none",
+                                            borderTop: "1px solid rgba(0,0,0,0.08)",
+                                            background:
+                                                clinicId === c.ClinicId ? "rgba(59,130,246,0.12)" : "white",
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            fontFamily: "Arial",
+                                        }}
+                                    >
+                                        <span>
+                                            <b>{c.ClinicId}</b>
+                                            {c.ClinicName ? ` — ${c.ClinicName}` : ""}
+                                        </span>
+
+                                        <span style={{ fontSize: 12, opacity: 0.7 }}>
+                                            {c.IsActive ? "פעילה" : "לא פעילה"}
+                                        </span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    )}
+
+                </div>
+
+
+                <form onSubmit={update} style={{ display: "grid", gap: 12, marginTop: 14 }}>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        המרפאה שנבחרה (ID):
+                        <input
+                            value={clinicId}
+                            readOnly
+                            style={{
+                                background: "#F3F4F6",
+                                color: "#111827",
+                                cursor: "not-allowed",
+                            }}
+                        />
+                    </label>
+
 
                     <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
                         <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />

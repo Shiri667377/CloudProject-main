@@ -1,22 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { getCurrentUser } from "aws-amplify/auth";
-import AdminLoginModal from "./AdminLoginModal";
 import AdminPanelModal from "./AdminPanelModal";
+import { startLogout, isAdmin, getUserEmail } from "./auth";
+
+
+
 
 
 /**
- * MedLoad Home (Vite/React)
+ * MedLoad Dashboard (Vite/React)
  * - Full width desktop layout
  * - More vibrant design
  * - Modal for clinic details (no JSON tab)
- * - Polls /loads every 60s
+ * - Polls /loads every 5 minutes
  */
 
-export default function Home() {
+export default function Dashboard() {
   const API_BASE_URL = "https://52x01kpdfk.execute-api.us-east-1.amazonaws.com/prod";
 
 
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
 
 
@@ -47,14 +48,24 @@ export default function Home() {
 
   const [hoveredCard, setHoveredCard] = React.useState(null);
 
-  async function openAdmin() {
-    try {
-      await getCurrentUser();            // אם כבר מחוברת – ישר לפאנל
-      setShowAdminPanel(true);
-    } catch {
-      setShowAdminLogin(true);           // אחרת – פותח התחברות
-    }
-  }
+  const userEmail = useMemo(() => getUserEmail(), []);
+
+
+  const AUTH_HEADERS = () => {
+    const access = localStorage.getItem("access_token");
+    return access ? { Authorization: `Bearer ${access}` } : {};
+  };
+
+  const headerBtnHoverIn = (e) => {
+    e.currentTarget.style.transform = "translateY(-1px)";
+    e.currentTarget.style.boxShadow = "0 14px 36px rgba(0,0,0,0.25)";
+  };
+
+  const headerBtnHoverOut = (e) => {
+    e.currentTarget.style.transform = "translateY(0)";
+    e.currentTarget.style.boxShadow = "0 8px 20px rgba(145, 140, 140, 0.18)";
+  };
+
 
 
   async function fetchLoads({ silent = false } = {}) {
@@ -63,7 +74,10 @@ export default function Home() {
 
     try {
       const url = `${API_BASE_URL}/loads`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: AUTH_HEADERS() });
+
+      if (handleUnauthorized(res)) return;
+
 
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
@@ -93,7 +107,10 @@ export default function Home() {
 
     try {
       const url = `${API_BASE_URL}/loads/${encodeURIComponent(clinicId)}`;
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: AUTH_HEADERS() });
+
+      if (handleUnauthorized(res)) return;
+
 
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
@@ -133,9 +150,17 @@ export default function Home() {
 
     try {
       const [hourlyRes, weeklyRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/forecast/hourly/${encodeURIComponent(clinicId)}`),
-        fetch(`${API_BASE_URL}/forecast/weekly/${encodeURIComponent(clinicId)}`),
+        fetch(`${API_BASE_URL}/forecast/hourly/${encodeURIComponent(clinicId)}`, {
+          headers: AUTH_HEADERS(),
+        }),
+        fetch(`${API_BASE_URL}/forecast/weekly/${encodeURIComponent(clinicId)}`, {
+          headers: AUTH_HEADERS(),
+        }),
       ]);
+
+
+      if (handleUnauthorized(hourlyRes)) return;
+      if (handleUnauthorized(weeklyRes)) return;
 
       if (!hourlyRes.ok) {
         const txt = await hourlyRes.text().catch(() => "");
@@ -204,23 +229,24 @@ export default function Home() {
 
     const items = data.items;
 
-    // קודם כל מרפאות פתוחות
+    // 1) רק פתוחות עכשיו
     const openItems = items.filter(
       (x) => isClinicOpenNow(x?.clinic?.OpeningHoursRule) === true
     );
 
-    const pool = openItems.length ? openItems : items;
+    // ✅ אם אין פתוחות — אין המלצה
+    if (openItems.length === 0) return null;
 
-    // אם השרת הציע מרפאה – ניקח אותה רק אם היא בתוך ה-pool
+    // 2) אם השרת הציע מרפאה — ניקח רק אם היא פתוחה
     const recId = data?.recommendedClinicId;
     if (recId) {
-      const byId = pool.find((x) => x?.clinic?.ClinicId === recId);
+      const byId = openItems.find((x) => x?.clinic?.ClinicId === recId);
       if (byId) return byId;
     }
 
-    // אחרת: הכי פחות המתנה
+    // 3) אחרת: הכי פחות המתנה (רק בין פתוחות)
     return (
-      [...pool].sort((a, b) => {
+      [...openItems].sort((a, b) => {
         const wa = a?.latest?.Timestamp ? num(a?.latest?.EstimatedWaitMin, Infinity) : Infinity;
         const wb = b?.latest?.Timestamp ? num(b?.latest?.EstimatedWaitMin, Infinity) : Infinity;
         return wa - wb;
@@ -339,7 +365,28 @@ export default function Home() {
             <div>
               <div style={styles.hTitle}>MedLoad</div>
               <div style={styles.hSub}>בדיקת עומס לפני שיוצאים • נתונים מתעדכנים אוטומטית</div>
+
             </div>
+
+            {userEmail && (
+              <div style={styles.userPill} title={userEmail}>
+                מחובר/ת כ־ <b style={{ direction: "ltr" }}>{userEmail}</b>
+              </div>
+            )}
+
+
+            <button
+              onClick={startLogout}
+              style={styles.logoutBtn}
+              onMouseEnter={headerBtnHoverIn}
+              onMouseLeave={headerBtnHoverOut}
+            >
+              התנתקות
+            </button>
+
+
+
+
           </div>
 
           <div style={styles.headerRight}>
@@ -356,22 +403,28 @@ export default function Home() {
                 opacity: refreshing || loading ? 0.65 : 1,
                 cursor: refreshing || loading ? "not-allowed" : "pointer",
               }}
+              onMouseEnter={headerBtnHoverIn}
+              onMouseLeave={headerBtnHoverOut}
             >
               {refreshing ? "מרענן..." : "רענון"}
             </button>
 
 
+
             {/* Admin (settings icon) */}
-            <button
-              onClick={openAdmin}
-              title="Admin login"
-              style={styles.adminBtn}
-              onMouseEnter={(e) => Object.assign(e.currentTarget.style, styles.adminBtnHover)}
-              onMouseLeave={(e) => Object.assign(e.currentTarget.style, styles.adminBtn)}
-            >
-              <span style={{ marginInlineEnd: 6, fontSize: 14 }}>⚙️</span>
-              <span>Admin login</span>
-            </button>
+            {isAdmin() && (
+              <button
+                onClick={() => setShowAdminPanel(true)}
+                title="ניהול מרפאות"
+                style={styles.adminBtn}
+                onMouseEnter={(e) => Object.assign(e.currentTarget.style, styles.adminBtnHover)}
+                onMouseLeave={(e) => Object.assign(e.currentTarget.style, styles.adminBtn)}
+              >
+                <span style={{ marginInlineEnd: 6, fontSize: 14 }}>⚙️</span>
+                <span>ניהול- אדמין</span>
+              </button>
+            )}
+
 
           </div>
 
@@ -485,10 +538,14 @@ export default function Home() {
                     </div>
 
                     <div style={styles.recoActions}>
-                      <button style={styles.primary} onClick={() => openModal(recommended?.clinic?.ClinicId)}>
+                      <button
+                        style={styles.primary}
+                        onClick={() => openModal(recommended?.clinic?.ClinicId)}
+                        onMouseEnter={headerBtnHoverIn}
+                        onMouseLeave={headerBtnHoverOut}
+                      >
                         פרטים
                       </button>
-
                     </div>
                   </>
                 ) : (
@@ -561,7 +618,7 @@ export default function Home() {
                         ...styles.cardBtn,
                         border:
                           hoveredCard === c?.clinic?.ClinicId
-                            ? "2px solid #34D399"   // צבע hover (ירקרק)
+                            ? "2px solid #eef5f2ff"   // צבע hover (ירקרק)
                             : styles.cardBtn.border,
                       }}
                       onClick={() => openModal(c?.clinic?.ClinicId)}
@@ -870,18 +927,10 @@ export default function Home() {
         </Modal>
       )}
 
+
       {/* Admin link (discreet) */}
 
 
-      {showAdminLogin && (
-        <AdminLoginModal
-          onClose={() => setShowAdminLogin(false)}
-          onSuccess={() => {
-            setShowAdminLogin(false);
-            setShowAdminPanel(true);
-          }}
-        />
-      )}
 
       {showAdminPanel && (
         <AdminPanelModal
@@ -977,6 +1026,20 @@ function DetailRow({ label, value }) {
 }
 
 /* ---------------- helpers ---------------- */
+
+function handleUnauthorized(res) {
+  if (res.status === 401) {
+    // token לא תקף / פג תוקף
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("id_token");
+
+    // נחזיר למסך הבית (ציבורי)
+    window.location.href = "/";
+    return true;
+  }
+  return false;
+}
+
 
 function num(v, fallback) {
   if (v === 0) return 0;
@@ -1360,7 +1423,7 @@ function BestVisitCard({ best }) {
 
         <div>
           <div style={{ fontSize: 12, fontWeight: 900, color: "rgba(11,16,32,0.65)" }}>
-             מומלץ להגיע ב־
+            מומלץ להגיע ב־
           </div>
 
           <div style={{ fontSize: 20, fontWeight: 950 }}>
@@ -1415,6 +1478,21 @@ const styles = {
       "linear-gradient(180deg, #0b1020 0%, #0b1020 35%, #0e1630 100%)",
   },
 
+
+  userPill: {
+    color: "rgba(255,255,255,0.9)",
+    background: "rgba(255,255,255,0.10)",
+    border: "1px solid rgba(255,255,255,0.18)",
+    padding: "10px 12px",
+    borderRadius: 999,
+    fontSize: 13,
+    backdropFilter: "blur(8px)",
+    maxWidth: 260,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
   bgBlob1: {
     position: "absolute",
     inset: "auto auto -220px -260px",
@@ -1464,17 +1542,14 @@ const styles = {
   },
   brand: { display: "flex", alignItems: "center", gap: 12 },
   logo: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.12)",
-    border: "1px solid rgba(255,255,255,0.18)",
-    color: "#fff",
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     display: "grid",
     placeItems: "center",
-    fontWeight: 700,
-    letterSpacing: 0.5,
-    boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
+    background: "linear-gradient(135deg, #60a5fa, #34d399)",
+    color: "#07101f",
+    fontWeight: 900,
   },
   hTitle: { color: "#fff", fontSize: 20, fontWeight: 700, lineHeight: 1.1 },
   hSub: { color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 3 },
@@ -1502,6 +1577,7 @@ const styles = {
     fontFamily: "Arial, system-ui, -apple-system, Roboto, sans-serif",
 
   },
+
 
   panel: {
     background: "rgba(255,255,255,0.10)",
@@ -1759,31 +1835,47 @@ const styles = {
     fontWeight: 700,
     color: "#0b1020",
     lineHeight: 1.5,
-  },
-  adminBtn: {
-    padding: "6px 10px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 12,
-    fontWeight: 700,
+  }, adminBtn: {
+    padding: "8px 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(96,165,250,0.6)",
+    background: "linear-gradient(135deg, rgba(96,165,250,0.35), rgba(59,130,246,0.25))",
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: 800,
     cursor: "pointer",
     lineHeight: 1,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     fontFamily: "Arial, sans-serif",
-    gap: 6,              // ריווח בין האייקון לטקסט
-    opacity: 0.8,
-    transition: "background 120ms ease, transform 120ms ease, opacity 120ms ease",
+    gap: 6,
+    opacity: 1,
+    boxShadow: "0 6px 18px rgba(236, 236, 237, 0.35)",
+    transition: "background 160ms ease, transform 160ms ease, box-shadow 160ms ease",
   },
+
 
   adminBtnHover: {
     background: "rgba(255,255,255,0.14)",
     opacity: 1,
     transform: "translateY(-1px)",
   },
+  logoutBtn: {
+    padding: "10px 14px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.18)",
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.10) 100%)",
+    color: "rgba(255,255,255,0.85)",
+    fontWeight: 700,
+    boxShadow: "0 8px 20px rgba(0,0,0,0.18)",
+    fontFamily: "Arial, system-ui, -apple-system, Roboto, sans-serif",
+    cursor: "pointer",
+    transition:
+      "background 140ms ease, transform 140ms ease, box-shadow 140ms ease",
+  },
+
 
   // ===== Forecast section  =====
   forecastSectionTitle: {
