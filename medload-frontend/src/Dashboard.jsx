@@ -848,9 +848,16 @@ export default function Dashboard() {
                   {/* Hourly bars */}
                   <div style={{ marginTop: 14 }}>
                     <div style={styles.forecastSectionTitle}>
-                      תחזית לפי שעות- בהתאם לשעות פתיחה{" "}
+                      תחזית זמן המתנה לפי שעות- בהתאם לשעות פתיחה{" "}
                       <span style={styles.forecastSectionTitle}>(מקסימום 12 שעות קדימה)</span>
                     </div>
+
+                    <div style={{ fontSize: 12, color: "rgba(11,16,32,0.65)", marginTop: 6 }}>
+                      ℹ️ התחזית השעתית מציגה זמן המתנה משוער, המחושב משילוב של נתונים היסטוריים והמדידה האחרונה.
+                       התחזית מחושבת לפי נתונים היסטוריים מאותו יום בשבוע ובאותה שעה.
+
+                    </div>
+
 
                     <SimpleBars
                       data={(hourlyForecast?.points || []).map((p) => ({
@@ -865,7 +872,8 @@ export default function Dashboard() {
 
                     {(hourlyForecast?.points || []).some((p) => p.usedFallback) ? (
                       <div style={{ marginTop: 8, fontSize: 12, color: "rgba(11,16,32,0.6)" }}>
-                        * חלק מהשעות מסומנות כ״הערכה״ כי אין מספיק נתונים היסטוריים.
+                        * חלק מהשעות מוצגות כהערכה מחושבת מאחר שטרם נצברו מספיק נתונים היסטוריים לשעה ביום זה.
+
                       </div>
                     ) : null}
 
@@ -880,8 +888,23 @@ export default function Dashboard() {
                   {/* Weekly grid */}
                   <div style={{ marginTop: 18 }}>
                     <div style={styles.forecastSectionTitle}>
-                      פרופיל שבועי <span style={styles.sectionSubTitle}>(LoadScore לפי יום/שעה)</span>
+                      פרופיל עומס שבועי <span style={styles.sectionSubTitle}>(LoadScore לפי יום/שעה)</span>
                     </div>
+                    <div
+                      style={{
+                        marginTop: 6,
+                        marginBottom: 10,
+                        fontSize: 12,
+                        color: "rgba(11,16,32,0.6)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      ℹ️ הפרופיל השבועי מציג דפוסי עומס כלליים (LoadScore) לפי יום ושעה, ואינו תחזית לזמן המתנה.
+                      הפרופיל השבועי מבוסס על ממוצעים היסטוריים לפי יום בשבוע ושעות פתיחה.
+                      בימים או בשעות שבהם טרם נאספו מספיק נתונים – התצוגה עשויה להיות חלקית.
+                    </div>
+
+
                     <WeeklyGrid points={weeklyProfile?.points || []} />
                   </div>
                 </>
@@ -1242,8 +1265,9 @@ function WeeklyGrid({ points }) {
 
     if (s === null) {
       return {
-        background: "rgba(11,16,32,0.06)",
-        border: "1px solid rgba(11,16,32,0.10)",
+        background: "rgba(11,16,32,0.02)",
+        border: "1px dashed rgba(11,16,32,0.35)",
+
       };
     }
 
@@ -1262,14 +1286,31 @@ function WeeklyGrid({ points }) {
         <div style={{ fontSize: 12, color: "rgba(11,16,32,0.75)", fontWeight: 900 }}>
           מקרא:
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ ...styles.legendDot, background: "rgba(11,16,32,0.10)" }} />
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          {/* אין נתונים */}
+          <div
+            style={{
+              ...styles.legendDot,
+              background: "rgba(11,16,32,0.02)",
+              border: "1px dashed rgba(11,16,32,0.35)",
+            }}
+          />
+          <span style={styles.legendText}>אין נתונים</span>
+
+
+          {/* נמוך */}
+          <div style={{ ...styles.legendDot, background: "rgba(11,16,32,0.10)", border: "1px solid rgba(11,16,32,0.16)" }} />
           <span style={styles.legendText}>נמוך</span>
-          <div style={{ ...styles.legendDot, background: "rgba(11,16,32,0.45)" }} />
+
+          {/* בינוני */}
+          <div style={{ ...styles.legendDot, background: "rgba(11,16,32,0.45)", border: "1px solid rgba(11,16,32,0.16)" }} />
           <span style={styles.legendText}>בינוני</span>
-          <div style={{ ...styles.legendDot, background: "rgba(11,16,32,0.78)" }} />
+
+          {/* גבוה */}
+          <div style={{ ...styles.legendDot, background: "rgba(11,16,32,0.78)", border: "1px solid rgba(11,16,32,0.16)" }} />
           <span style={styles.legendText}>גבוה</span>
         </div>
+
       </div>
 
       {/* Force LTR so hours won’t flip in RTL */}
