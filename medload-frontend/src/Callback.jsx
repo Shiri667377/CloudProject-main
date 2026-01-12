@@ -8,6 +8,8 @@ export default function Callback() {
     const [msg, setMsg] = useState("...מתחבר");
 
     useEffect(() => {
+
+        
         if (ran.current) return;          // ✅ מונע ריצה כפולה ב-StrictMode
         ran.current = true;
 

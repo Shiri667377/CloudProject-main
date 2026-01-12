@@ -224,36 +224,6 @@ export default function Dashboard() {
     const lf = lastFetchAtRef.current;
     return lf ? formatRelative(lf) : "--";
   }, [data]);
-  const recommended = useMemo(() => {
-    if (!data?.items?.length) return null;
-
-    const items = data.items;
-
-    // 1) רק פתוחות עכשיו
-    const openItems = items.filter(
-      (x) => isClinicOpenNow(x?.clinic?.OpeningHoursRule) === true
-    );
-
-    // ✅ אם אין פתוחות — אין המלצה
-    if (openItems.length === 0) return null;
-
-    // 2) אם השרת הציע מרפאה — ניקח רק אם היא פתוחה
-    const recId = data?.recommendedClinicId;
-    if (recId) {
-      const byId = openItems.find((x) => x?.clinic?.ClinicId === recId);
-      if (byId) return byId;
-    }
-
-    // 3) אחרת: הכי פחות המתנה (רק בין פתוחות)
-    return (
-      [...openItems].sort((a, b) => {
-        const wa = a?.latest?.Timestamp ? num(a?.latest?.EstimatedWaitMin, Infinity) : Infinity;
-        const wb = b?.latest?.Timestamp ? num(b?.latest?.EstimatedWaitMin, Infinity) : Infinity;
-        return wa - wb;
-      })[0] ?? null
-    );
-  }, [data]);
-
 
   const filteredSorted = useMemo(() => {
     const items = Array.isArray(data?.items) ? data.items : [];
@@ -284,6 +254,7 @@ export default function Dashboard() {
       return true;
 
     });
+
 
     out.sort((a, b) => {
       const openA = isClinicOpenNow(a?.clinic?.OpeningHoursRule) === true;
@@ -316,6 +287,38 @@ export default function Dashboard() {
 
     return out;
   }, [data, search, sortBy, onlyUnder20]);
+
+
+  const recommended = useMemo(() => {
+    const items = Array.isArray(filteredSorted) ? filteredSorted : [];
+    if (items.length === 0) return null;
+
+    // 1) רק פתוחות עכשיו (בתוך המסונן!)
+    const openItems = items.filter(
+      (x) => isClinicOpenNow(x?.clinic?.OpeningHoursRule) === true
+    );
+
+    // אם אין פתוחות — אין המלצה
+    if (openItems.length === 0) return null;
+
+    // 2) אם השרת הציע מרפאה — ניקח רק אם היא קיימת בסינון וגם פתוחה
+    const recId = data?.recommendedClinicId;
+    if (recId) {
+      const byId = openItems.find((x) => x?.clinic?.ClinicId === recId);
+      if (byId) return byId;
+    }
+
+    // 3) אחרת: הכי פחות המתנה (רק בין פתוחות ובמסונן)
+    return (
+      [...openItems].sort((a, b) => {
+        const wa = a?.latest?.Timestamp ? num(a?.latest?.EstimatedWaitMin, Infinity) : Infinity;
+        const wb = b?.latest?.Timestamp ? num(b?.latest?.EstimatedWaitMin, Infinity) : Infinity;
+        return wa - wb;
+      })[0] ?? null
+    );
+  }, [filteredSorted, data?.recommendedClinicId]);
+
+
 
   function openModal(clinicId) {
     setSelectedClinicId(clinicId);
@@ -467,12 +470,20 @@ export default function Dashboard() {
               {/* Recommended card */}
               <section style={styles.recoCard}>
                 <div style={styles.recoHeader}>
-                  <div style={styles.recoBadge} > הכי מומלץ עכשיו ⭐ </div>
+                  <div>
+                    <div style={styles.recoBadge}>הכי מומלץ עכשיו ⭐</div>
+                    <div style={styles.recoWhy}>
+                        •   זמן המתנה משוער הנמוך ביותר  
+                    </div>
+                  </div>
+
                   {recommended ? (
                     <div>
                       <div style={styles.recoClinic}>
                         {recommended?.clinic?.ClinicName || recommended?.clinic?.ClinicId}
                       </div>
+
+
 
                       <div style={styles.recoMeta}>
                         {recommended?.clinic?.City || "—"} • {recommended?.clinic?.HMO || "—"}
@@ -854,7 +865,7 @@ export default function Dashboard() {
 
                     <div style={{ fontSize: 12, color: "rgba(11,16,32,0.65)", marginTop: 6 }}>
                       ℹ️ התחזית השעתית מציגה זמן המתנה משוער, המחושב משילוב של נתונים היסטוריים והמדידה האחרונה.
-                       התחזית מחושבת לפי נתונים היסטוריים מאותו יום בשבוע ובאותה שעה.
+                      התחזית מחושבת לפי נתונים היסטוריים מאותו יום בשבוע ובאותה שעה.
 
                     </div>
 
@@ -1677,6 +1688,14 @@ const styles = {
     boxShadow: "0 12px 32px rgba(128, 164, 152, 0.45)",
     textTransform: "uppercase",
   },
+
+  recoWhy: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.75)",
+  },
+
 
   recoClinic: { color: "#fff", fontSize: 18, fontWeight: 700 },
   recoMain: { marginTop: 14 },

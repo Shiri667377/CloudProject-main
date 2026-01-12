@@ -1,7 +1,12 @@
 import React from "react";
-import { startLogin } from "./auth";
+import { startLogin, isLoggedIn, getUserEmail } from "./auth";
+
 
 export default function HomePublic() {
+
+  const loggedIn = isLoggedIn();
+  const email = getUserEmail();
+
   const styles = {
     page: {
       minHeight: "100vh",
@@ -129,7 +134,7 @@ export default function HomePublic() {
         {/* Hero */}
         <div style={styles.hero}>
           <h1 style={styles.h1}>
-            יודעים מראש מתי המרפאה עמוסה  
+            יודעים מראש מתי המרפאה עמוסה
             <br />
             ומתי הכי כדאי להגיע
           </h1>
@@ -155,12 +160,16 @@ export default function HomePublic() {
                 "0 10px 30px rgba(0,0,0,0.35)";
             }}
           >
-           הרשמה / התחברות למערכת
+            {loggedIn ? "כניסה לדאשבורד" : "הרשמה / התחברות למערכת"}
           </button>
 
           <div style={styles.note}>
-            לצפייה בעומסים, גרפים ותחזיות – יש להתחבר למערכת
+            {loggedIn
+              ? <>הינך מחובר/ת{email ? <> כ־ <span style={{ direction: "ltr" }}>{email}</span></> : ""} — ניתן להיכנס לדאשבורד</>
+              : "לצפייה בעומסים, גרפים ותחזיות – יש להתחבר למערכת"}
           </div>
+
+
         </div>
 
         {/* Benefits */}
