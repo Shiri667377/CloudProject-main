@@ -9,13 +9,10 @@ export default function App() {
  return (
     <BrowserRouter>
       <Routes>
-        {/* מסך בית – לא מחוברים */}
         <Route path="/" element={<HomePublic />} />
 
-        {/* חזרה מ-Cognito */}
         <Route path="/callback" element={<Callback />} />
 
-        {/* דאשבורד – רק למחוברים */}
         <Route
           path="/dashboard"
           element={
