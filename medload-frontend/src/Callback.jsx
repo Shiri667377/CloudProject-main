@@ -10,10 +10,9 @@ export default function Callback() {
     useEffect(() => {
 
         
-        if (ran.current) return;          // ✅ מונע ריצה כפולה ב-StrictMode
+        if (ran.current) return;          
         ran.current = true;
 
-        // אם כבר יש טוקן (למשל אחרי הריצה הראשונה), פשוט לעבור לדאשבורד
         if (isLoggedIn()) {
             nav("/dashboard", { replace: true });
             return;
@@ -31,7 +30,7 @@ export default function Callback() {
                 const em = String(e?.message || "");
 
                 if (em.includes("Missing PKCE verifier")) {
-                    startLogin();   // ✅ מתחיל התחברות מחדש אוטומטית
+                    startLogin(); 
                     return;
                 }
 
